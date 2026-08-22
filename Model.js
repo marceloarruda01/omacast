@@ -3,6 +3,10 @@
 
 var MAX_EPISODES_PER_FEED = 100;
 var SEPARATOR = "\u001f";
+var SPEED_MIN = 0.5;
+var SPEED_MAX = 3.0;
+var SPEED_STEP = 0.25;
+var SPEED_DEFAULT = 1.0;
 
 function text(value, fallback) {
     var result = value === undefined || value === null ? "" : String(value).trim();
@@ -72,6 +76,7 @@ function parseState(raw) {
         progress: {},
         currentEpisodeKey: "",
         selectedFeedUrl: "",
+        playbackSpeed: SPEED_DEFAULT,
     };
 
     try {
@@ -101,6 +106,7 @@ function parseState(raw) {
         empty.progress = progress;
         empty.currentEpisodeKey = text(parsed.currentEpisodeKey);
         empty.selectedFeedUrl = text(parsed.selectedFeedUrl);
+        empty.playbackSpeed = clampSpeed(parsed.playbackSpeed !== undefined ? parsed.playbackSpeed : SPEED_DEFAULT);
         return empty;
     } catch (error) {
         return empty;
@@ -224,19 +230,36 @@ function truncate(value, length) {
     return source.slice(0, max - 1).trimEnd() + "...";
 }
 
-function stateFor(feeds, progress, currentEpisodeKey, selectedFeedUrl) {
+function clampSpeed(value) {
+    var n = number(value, SPEED_DEFAULT);
+    if (!isFinite(n)) return SPEED_DEFAULT;
+    var snapped = Math.round(n / SPEED_STEP) * SPEED_STEP;
+    return Math.round(Math.max(SPEED_MIN, Math.min(SPEED_MAX, snapped)) * 100) / 100;
+}
+
+function formatSpeed(value) {
+    var n = clampSpeed(value);
+    return (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, "") + "x";
+}
+
+function stateFor(feeds, progress, currentEpisodeKey, selectedFeedUrl, playbackSpeed) {
     return {
         version: 1,
         feeds: Array.isArray(feeds) ? feeds : [],
         progress: progress || {},
         currentEpisodeKey: text(currentEpisodeKey),
         selectedFeedUrl: text(selectedFeedUrl),
+        playbackSpeed: clampSpeed(playbackSpeed !== undefined ? playbackSpeed : SPEED_DEFAULT),
     };
 }
 
 if (typeof module !== "undefined") {
     module.exports = {
         MAX_EPISODES_PER_FEED: MAX_EPISODES_PER_FEED,
+        SPEED_MIN: SPEED_MIN,
+        SPEED_MAX: SPEED_MAX,
+        SPEED_STEP: SPEED_STEP,
+        SPEED_DEFAULT: SPEED_DEFAULT,
         validHttpUrl: validHttpUrl,
         episodeKey: episodeKey,
         normalizeEpisode: normalizeEpisode,
@@ -250,6 +273,8 @@ if (typeof module !== "undefined") {
         formatDuration: formatDuration,
         formatDate: formatDate,
         formatPosition: formatPosition,
+        formatSpeed: formatSpeed,
+        clampSpeed: clampSpeed,
         truncate: truncate,
         stateFor: stateFor,
     };

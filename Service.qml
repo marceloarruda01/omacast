@@ -25,6 +25,7 @@ Item {
     property var progress: ({})
     property string currentEpisodeKey: ""
     property string selectedFeedUrl: ""
+    property real playbackSpeed: 1.0
     property string statusText: ""
     property string errorText: ""
     property bool stateLoaded: false
@@ -44,6 +45,7 @@ Item {
             playing: false,
             position: 0,
             duration: 0,
+            speed: 1.0,
             idle: false,
             title: "",
             path: "",
@@ -89,6 +91,7 @@ Item {
         root.progress = parsed.progress;
         root.currentEpisodeKey = parsed.currentEpisodeKey;
         root.selectedFeedUrl = parsed.selectedFeedUrl;
+        root.playbackSpeed = parsed.playbackSpeed;
         root.stateLoaded = true;
         root.rebuildEpisodes();
         root.maybeInitialRefresh();
@@ -112,7 +115,7 @@ Item {
     function saveState() {
         if (!root.stateLoaded || !root.directoriesReady)
             return;
-        stateFile.setText(JSON.stringify(Model.stateFor(root.feeds, root.progress, root.currentEpisodeKey, root.selectedFeedUrl), null, 2) + "\n");
+        stateFile.setText(JSON.stringify(Model.stateFor(root.feeds, root.progress, root.currentEpisodeKey, root.selectedFeedUrl, root.playbackSpeed), null, 2) + "\n");
     }
 
     function setProgress(key, position, completed) {
@@ -321,6 +324,8 @@ Item {
         var saved = Model.progressFor(root.progress, episode.key);
         var position = saved.completed ? 0 : saved.position;
         root.queuePlayer(["play", episode.audioUrl, episode.title, String(Math.max(0, position)),]);
+        if (root.playbackSpeed !== 1.0)
+            root.queuePlayer(["speed", String(root.playbackSpeed)]);
         return true;
     }
 
@@ -343,6 +348,19 @@ Item {
             return false;
         root.queuePlayer(["seek", String(Number(seconds) || 0)]);
         return true;
+    }
+
+    function setSpeed(value) {
+        var clamped = Model.clampSpeed(value);
+        root.playbackSpeed = clamped;
+        root.scheduleSave();
+        if (root.playback.connected)
+            root.queuePlayer(["speed", String(clamped)]);
+        return true;
+    }
+
+    function adjustSpeed(delta) {
+        return root.setSpeed(root.playbackSpeed + (Number(delta) || 0));
     }
 
     function playNext() {
@@ -415,16 +433,21 @@ Item {
 
         if (root.activePlayerAction !== "state")
             return;
+        var wasConnected = root.playback.connected;
         root.playback = {
             connected: parsed.connected === true,
             playing: parsed.playing === true,
             position: Math.max(0, Number(parsed.position) || 0),
             duration: Math.max(0, Number(parsed.duration) || 0),
+            speed: parsed.speed !== undefined ? Math.max(0.5, Math.min(3.0, Number(parsed.speed) || 1.0)) : 1.0,
             idle: parsed.idle === true,
             title: String(parsed.title || ""),
             path: String(parsed.path || ""),
             error: ""
         };
+
+        if (!wasConnected && root.playback.connected && root.playbackSpeed !== 1.0)
+            root.queuePlayer(["speed", String(root.playbackSpeed)]);
 
         if (root.currentEpisode && root.playback.connected) {
             var position = root.playback.position;
