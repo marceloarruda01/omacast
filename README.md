@@ -11,6 +11,7 @@ streaming episodes through a detached `mpv` process.
 - Seek by 30 seconds from the bar, popup, or keyboard.
 - Keep playback alive when `omarchy-shell` restarts.
 - Advertise playback through `mpv-mpris` when it is installed.
+- Choose between microphone, broadcast, and headphones icons in the Podcasts tab.
 
 The plugin streams enclosure URLs. It does not download episodes for offline
 playback.
@@ -40,6 +41,7 @@ library and accepts HTTP and HTTPS feeds.
   refreshes, and `/` focuses search.
 - Clicking a podcast in the Podcasts tab filters the Episodes tab to that
   show; "Show all episodes" clears the filter.
+- The selected bar icon is saved in the widget's inline Omarchy settings.
 
 Subscriptions and progress are stored in:
 
