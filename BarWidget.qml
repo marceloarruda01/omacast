@@ -206,9 +206,9 @@ Panel {
                 } else if (value === "b" || value === "B") {
                     root.serviceCall("playPrevious");
                 } else if (value === "[") {
-                    root.serviceCall("adjustSpeed", -0.1);
+                    root.serviceCall("adjustSpeed", -0.25);
                 } else if (value === "]") {
-                    root.serviceCall("adjustSpeed", 0.1);
+                    root.serviceCall("adjustSpeed", 0.25);
                 } else if (value === "\\") {
                     root.serviceCall("setSpeed", 1.0);
                 } else if (value === "/") {
@@ -309,8 +309,8 @@ Panel {
                                 horizontalPadding: Style.space(4)
                                 verticalPadding: Style.space(1)
                                 background: "transparent"
-                                Accessible.name: "Decrease speed by 0.1x"
-                                onClicked: root.serviceCall("adjustSpeed", -0.1)
+                                Accessible.name: "Decrease speed by 0.25x"
+                                onClicked: root.serviceCall("adjustSpeed", -0.25)
                             }
 
                             Button {
@@ -369,8 +369,8 @@ Panel {
                                 horizontalPadding: Style.space(4)
                                 verticalPadding: Style.space(1)
                                 background: "transparent"
-                                Accessible.name: "Increase speed by 0.1x"
-                                onClicked: root.serviceCall("adjustSpeed", 0.1)
+                                Accessible.name: "Increase speed by 0.25x"
+                                onClicked: root.serviceCall("adjustSpeed", 0.25)
                             }
                         }
                     }
