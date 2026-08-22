@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "marcelo.podcast",
   "name": "Podcast",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "Marcelo",
   "description": "RSS podcast library with local mpv playback and resume support.",
   "kinds": [
@@ -19,6 +19,22 @@
     "description": "RSS library and mpv playback",
     "category": "Media",
     "allowMultiple": false,
-    "defaultSection": "right"
+    "defaultSection": "right",
+    "defaults": {
+      "iconVariant": "microphone"
+    },
+    "schema": [
+      {
+        "key": "iconVariant",
+        "type": "enum",
+        "label": "Podcast icon",
+        "options": [
+          "microphone",
+          "broadcast",
+          "headphones"
+        ],
+        "defaultValue": "microphone"
+      }
+    ]
   }
 }

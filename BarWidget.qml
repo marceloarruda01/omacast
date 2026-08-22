@@ -20,6 +20,28 @@ Panel {
     property string feedFilter: ""
     property int selectedIndex: 0
     property string activeTab: "episodes"
+    readonly property var iconOptions: [
+        {
+            value: "microphone",
+            label: "Microphone"
+        },
+        {
+            value: "broadcast",
+            label: "Broadcast"
+        },
+        {
+            value: "headphones",
+            label: "Headphones"
+        }
+    ]
+    readonly property string iconVariant: {
+        var value = String(root.setting("iconVariant", "microphone"));
+        for (var i = 0; i < root.iconOptions.length; i++) {
+            if (root.iconOptions[i].value === value)
+                return value;
+        }
+        return "microphone";
+    }
 
     function serviceCall(name) {
         if (!root.podcastService || typeof root.podcastService[name] !== "function")
@@ -63,6 +85,20 @@ Panel {
         root.serviceCall("refreshAll");
     }
 
+    function setIconVariant(value) {
+        for (var i = 0; i < root.iconOptions.length; i++) {
+            if (root.iconOptions[i].value !== value)
+                continue;
+            var next = Object.assign({}, root.settings || {}, {
+                iconVariant: value
+            });
+            root.settings = next;
+            if (root.bar && root.bar.shell && typeof root.bar.shell.updateEntryInline === "function")
+                root.bar.shell.updateEntryInline(root.moduleName, next);
+            return;
+        }
+    }
+
     implicitWidth: vertical ? Style.bar.sizeVertical : Math.min(Style.space(180), row.implicitWidth + Style.space(18))
     implicitHeight: vertical ? row.implicitHeight + Style.space(8) : (bar ? bar.barSize : Style.bar.sizeHorizontal)
 
@@ -82,12 +118,10 @@ Panel {
         anchors.centerIn: parent
         spacing: Style.space(6)
 
-        Text {
-            text: root.podcastService && root.podcastService.playback.playing ? ">" : "POD"
+        PodcastIcon {
+            iconSize: Style.font.icon
+            variant: root.iconVariant
             color: root.foreground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.body
-            font.bold: true
             anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -477,6 +511,63 @@ Panel {
                         text: "PODCASTS"
                         foreground: root.foreground
                         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                    }
+
+                    Text {
+                        text: "BAR ICON"
+                        color: Qt.darker(root.foreground, 1.4)
+                        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                    }
+
+                    Row {
+                        id: iconChoices
+
+                        width: parent.width
+                        spacing: Style.space(6)
+
+                        Repeater {
+                            model: root.iconOptions
+
+                            BorderSurface {
+                                required property var modelData
+                                required property int index
+
+                                width: (iconChoices.width - iconChoices.spacing * 2) / 3
+                                height: Style.space(72)
+                                radius: Style.cornerRadius
+                                color: root.iconVariant === modelData.value ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
+                                borderSpec: root.iconVariant === modelData.value ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
+
+                                Column {
+                                    anchors.centerIn: parent
+                                    spacing: Style.space(4)
+
+                                    PodcastIcon {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        iconSize: Style.space(28)
+                                        variant: modelData.value
+                                        color: root.foreground
+                                    }
+
+                                    Text {
+                                        text: modelData.label
+                                        color: root.foreground
+                                        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                        font.pixelSize: Style.font.caption
+                                        horizontalAlignment: Text.AlignHCenter
+                                        width: parent.width
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton
+                                    onClicked: root.setIconVariant(modelData.value)
+                                }
+                            }
+                        }
                     }
 
                     Row {
