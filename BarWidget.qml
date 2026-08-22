@@ -183,21 +183,13 @@ Panel {
                 }
             }
 
-            Flickable {
-                id: contentFlick
+            Column {
+                id: panelColumn
 
-                anchors.fill: parent
-                contentWidth: width
-                contentHeight: panelColumn.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                interactive: contentHeight > height
-
-                Column {
-                    id: panelColumn
-
-                    width: contentFlick.width
-                    spacing: Style.space(12)
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                spacing: Style.space(12)
 
                     Item {
                         width: parent.width
@@ -511,90 +503,108 @@ Panel {
                             }
                         }
 
-                        Column {
+                        Flickable {
+                            id: feedsFlick
+
                             width: parent.width
-                            spacing: Style.space(4)
+                            height: Math.min(Style.space(330), Math.max(Style.space(90), feedsColumn.implicitHeight))
+                            contentWidth: width
+                            contentHeight: feedsColumn.implicitHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            interactive: contentHeight > height
 
-                            Repeater {
-                                model: root.podcastService ? root.podcastService.feeds : []
+                            Column {
+                                id: feedsColumn
 
-                                BorderSurface {
-                                    required property var modelData
-                                    required property int index
+                                width: feedsFlick.width
+                                spacing: Style.space(4)
 
-                                    width: parent.width
-                                    implicitHeight: feedRow.implicitHeight + Style.space(10)
-                                    radius: Style.cornerRadius
-                                    color: root.feedFilter === modelData.url ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
-                                    borderSpec: root.feedFilter === modelData.url ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
+                                Repeater {
+                                    model: root.podcastService ? root.podcastService.feeds : []
 
-                                    Row {
-                                        id: feedRow
+                                    BorderSurface {
+                                        required property var modelData
+                                        required property int index
 
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Style.space(8)
-                                        anchors.rightMargin: Style.space(4)
-                                        spacing: Style.space(6)
+                                        width: parent.width
+                                        implicitHeight: feedRow.implicitHeight + Style.space(10)
+                                        radius: Style.cornerRadius
+                                        color: root.feedFilter === modelData.url ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
+                                        borderSpec: root.feedFilter === modelData.url ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
 
-                                        Column {
-                                            width: parent.width - removeFeedButton.width - parent.spacing
-                                            spacing: Style.space(1)
+                                        Row {
+                                            id: feedRow
 
-                                            Text {
-                                                text: modelData.title
-                                                color: root.foreground
-                                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                                font.pixelSize: Style.font.body
-                                                font.bold: root.feedFilter === modelData.url
-                                                elide: Text.ElideRight
-                                                width: parent.width
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.leftMargin: Style.space(8)
+                                            anchors.rightMargin: Style.space(4)
+                                            spacing: Style.space(6)
+
+                                            Column {
+                                                width: parent.width - removeFeedButton.width - parent.spacing
+                                                spacing: Style.space(1)
+
+                                                Text {
+                                                    text: modelData.title
+                                                    color: root.foreground
+                                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                    font.pixelSize: Style.font.body
+                                                    font.bold: root.feedFilter === modelData.url
+                                                    elide: Text.ElideRight
+                                                    width: parent.width
+                                                }
+
+                                                Text {
+                                                    text: modelData.error || modelData.url
+                                                    color: modelData.error ? Color.urgent : Qt.darker(root.foreground, 1.6)
+                                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                    font.pixelSize: Style.font.caption
+                                                    elide: Text.ElideRight
+                                                    width: parent.width
+                                                }
                                             }
 
-                                            Text {
-                                                text: modelData.error || modelData.url
-                                                color: modelData.error ? Color.urgent : Qt.darker(root.foreground, 1.6)
-                                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                                font.pixelSize: Style.font.caption
-                                                elide: Text.ElideRight
-                                                width: parent.width
+                                            PanelActionButton {
+                                                id: removeFeedButton
+
+                                                iconText: "x"
+                                                tooltipText: "Remove feed"
+                                                foreground: root.foreground
+                                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                                hoverColor: Color.urgent
+                                                onClicked: {
+                                                    if (root.feedFilter === modelData.url)
+                                                        root.feedFilter = "";
+                                                    root.serviceCall("removeFeed", modelData.url);
+                                                }
                                             }
                                         }
 
-                                        PanelActionButton {
-                                            id: removeFeedButton
-
-                                            iconText: "x"
-                                            tooltipText: "Remove feed"
-                                            foreground: root.foreground
-                                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                            hoverColor: Color.urgent
-                                            onClicked: root.serviceCall("removeFeed", modelData.url)
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        z: -1
-                                        acceptedButtons: Qt.LeftButton
-                                        onClicked: {
-                                            var nextFilter = root.feedFilter === modelData.url ? "" : modelData.url;
-                                            root.feedFilter = nextFilter;
-                                            if (nextFilter !== "")
-                                                root.activeTab = "episodes";
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            z: -1
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: {
+                                                var nextFilter = root.feedFilter === modelData.url ? "" : modelData.url;
+                                                root.feedFilter = nextFilter;
+                                                if (nextFilter !== "")
+                                                    root.activeTab = "episodes";
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            Text {
-                                visible: root.podcastService && !root.podcastService.hasFeeds
-                                text: "Paste a feed URL above to subscribe."
-                                color: Qt.darker(root.foreground, 1.4)
-                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                font.pixelSize: Style.font.bodySmall
-                                font.italic: true
+                                Text {
+                                    visible: root.podcastService && !root.podcastService.hasFeeds
+                                    text: "Paste a feed URL above to subscribe."
+                                    color: Qt.darker(root.foreground, 1.4)
+                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                    font.pixelSize: Style.font.bodySmall
+                                    font.italic: true
+                                }
                             }
                         }
 
