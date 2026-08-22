@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "marcelo.podcast",
+  "name": "Podcast",
+  "version": "0.1.0",
+  "author": "Marcelo",
+  "description": "RSS podcast library with local mpv playback and resume support.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Podcast",
+    "description": "RSS library and mpv playback",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

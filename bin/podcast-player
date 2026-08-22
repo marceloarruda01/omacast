@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Control one detached mpv podcast player over a local JSON IPC socket."""
+
+from __future__ import annotations
+
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+SOCKET_NAME = "omarchy-podcast-mpv.sock"
+SOCKET_TIMEOUT = 0.8
+START_TIMEOUT = 4.0
+
+
+def socket_path() -> str:
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime:
+        return str(Path(runtime) / SOCKET_NAME)
+    return f"/tmp/{SOCKET_NAME[:-5]}-{os.getuid()}.sock"
+
+
+def request(command: list[object]) -> object:
+    path = socket_path()
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(SOCKET_TIMEOUT)
+        client.connect(path)
+        client.sendall((json.dumps({"command": command, "request_id": 1}) + "\n").encode())
+        buffer = b""
+        while len(buffer) < 1024 * 1024:
+            chunk = client.recv(64 * 1024)
+            if not chunk:
+                break
+            buffer += chunk
+            for line in buffer.splitlines():
+                try:
+                    response = json.loads(line.decode())
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                if response.get("request_id") != 1:
+                    continue
+                if response.get("error") not in (None, "success"):
+                    raise RuntimeError(str(response.get("error")))
+                return response.get("data")
+    return None
+
+
+def wait_for_socket(present: bool) -> bool:
+    deadline = time.monotonic() + START_TIMEOUT
+    while time.monotonic() < deadline:
+        exists = Path(socket_path()).exists()
+        if exists == present:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def stop_existing() -> None:
+    try:
+        request(["quit"])
+    except (OSError, RuntimeError, socket.timeout):
+        pass
+    wait_for_socket(False)
+
+
+def start(url: str, title: str, position: float) -> None:
+    stop_existing()
+    path = socket_path()
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        Path(path).unlink()
+    except FileNotFoundError:
+        pass
+
+    command = [
+        "mpv",
+        "--no-video",
+        "--force-window=no",
+        "--idle=yes",
+        "--no-terminal",
+        f"--input-ipc-server={path}",
+        "--force-media-title=" + title,
+        url,
+    ]
+    mpris = Path("/etc/mpv/scripts/mpris.so")
+    if mpris.is_file():
+        command.insert(-1, f"--script={mpris}")
+    if position > 0:
+        command.insert(-1, f"--start={max(0.0, position):.3f}")
+
+    subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        close_fds=True,
+    )
+    if not wait_for_socket(True):
+        raise RuntimeError("mpv did not open its control socket")
+
+
+def state() -> dict[str, object]:
+    values: dict[str, object] = {
+        "connected": False,
+        "position": 0,
+        "duration": 0,
+        "playing": False,
+        "idle": False,
+        "title": "",
+        "path": "",
+    }
+    if not Path(socket_path()).exists():
+        return values
+
+    try:
+        for key in ("time-pos", "duration", "pause", "idle-active", "media-title", "path"):
+            values[key] = request(["get_property", key])
+    except (OSError, RuntimeError, socket.timeout):
+        return values
+
+    values["connected"] = True
+    values["position"] = float(values.get("time-pos") or 0)
+    values["duration"] = float(values.get("duration") or 0)
+    values["playing"] = not bool(values.get("pause")) and not bool(values.get("idle-active"))
+    values["idle"] = bool(values.get("idle-active"))
+    values["title"] = str(values.get("media-title") or "")
+    values["path"] = str(values.get("path") or "")
+    for key in ("time-pos", "duration", "pause", "idle-active", "media-title"):
+        values.pop(key, None)
+    return values
+
+
+def output(value: object) -> int:
+    print(json.dumps(value, separators=(",", ":")))
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 2:
+        return output({"ok": False, "error": "missing action"})
+
+    action = argv[1]
+    try:
+        if action == "play":
+            if len(argv) < 4:
+                raise ValueError("play requires URL and title")
+            position = float(argv[4]) if len(argv) > 4 else 0.0
+            start(argv[2], argv[3], position)
+            return output({"ok": True})
+        if action == "pause":
+            request(["cycle", "pause"])
+            return output({"ok": True})
+        if action == "seek":
+            request(["seek", float(argv[2]), "relative", "exact"])
+            return output({"ok": True})
+        if action == "stop":
+            stop_existing()
+            return output({"ok": True})
+        if action == "state":
+            return output(state())
+        raise ValueError(f"unknown action: {action}")
+    except (OSError, RuntimeError, ValueError, socket.timeout) as error:
+        return output({"ok": False, "error": str(error)})
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

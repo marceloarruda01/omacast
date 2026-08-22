@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Fetch and normalize RSS or Atom podcast feeds."""
+
+from __future__ import annotations
+
+import email.utils
+import html
+import json
+import re
+import sys
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from html.parser import HTMLParser
+from pathlib import PurePosixPath
+
+MAX_BYTES = 5 * 1024 * 1024
+TIMEOUT = 12
+USER_AGENT = "omarchy-podcast/0.1"
+AUDIO_EXTENSIONS = {".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".opus", ".wav", ".webm"}
+
+
+def local_name(tag: str) -> str:
+    return str(tag).rsplit("}", 1)[-1].lower()
+
+
+def clean(value: object, fallback: str = "") -> str:
+    result = "" if value is None else str(value).strip()
+    return result or fallback
+
+
+def element_text(element: ET.Element | None) -> str:
+    if element is None:
+        return ""
+    return clean(" ".join("".join(element.itertext()).split()))
+
+
+class PlainTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"br", "li", "p", "div", "h1", "h2", "h3"}:
+            self.parts.append(" ")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"li", "p", "div", "h1", "h2", "h3"}:
+            self.parts.append(" ")
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def plain_summary(value: str) -> str:
+    parser = PlainTextParser()
+    try:
+        parser.feed(html.unescape(value))
+        parser.close()
+        result = " ".join("".join(parser.parts).split())
+    except Exception:
+        result = " ".join(value.split())
+    return result[:800].rstrip()
+
+
+def child_text(element: ET.Element, names: set[str]) -> str:
+    for child in list(element):
+        if local_name(child.tag) in names:
+            value = element_text(child)
+            if value:
+                return value
+    return ""
+
+
+def child_with_attribute(element: ET.Element, names: set[str]) -> str:
+    for child in list(element):
+        if local_name(child.tag) not in names:
+            continue
+        for key in ("href", "url", "src"):
+            value = clean(child.attrib.get(key))
+            if value:
+                return value
+    return ""
+
+
+def parse_timestamp(value: str) -> int:
+    value = clean(value)
+    if not value:
+        return 0
+
+    try:
+        parsed = email.utils.parsedate_to_datetime(value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return max(0, int(parsed.timestamp()))
+    except (TypeError, ValueError, OverflowError):
+        pass
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return max(0, int(parsed.timestamp()))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def parse_duration(value: str) -> int:
+    value = clean(value)
+    if not value:
+        return 0
+    if re.fullmatch(r"\d+(?::\d{1,2}){1,2}", value):
+        pieces = [int(piece) for piece in value.split(":")]
+        if len(pieces) == 2:
+            return pieces[0] * 60 + pieces[1]
+        return pieces[0] * 3600 + pieces[1] * 60 + pieces[2]
+    try:
+        return max(0, int(float(value)))
+    except ValueError:
+        return 0
+
+
+def absolute_url(value: str, base_url: str) -> str:
+    candidate = clean(value)
+    if not candidate:
+        return ""
+    return urllib.parse.urljoin(base_url, candidate)
+
+
+def is_http_url(value: str) -> bool:
+    parsed = urllib.parse.urlparse(value)
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
+def image_url(element: ET.Element, base_url: str) -> str:
+    for child in element.iter():
+        name = local_name(child.tag)
+        if name not in {"image", "icon", "logo", "thumbnail", "content"}:
+            continue
+        for key in ("href", "url", "src"):
+            value = absolute_url(child.attrib.get(key, ""), base_url)
+            if is_http_url(value):
+                return value
+        value = absolute_url(element_text(child), base_url)
+        if is_http_url(value):
+            return value
+    return ""
+
+
+def link_url(element: ET.Element, base_url: str, rel: str = "") -> str:
+    for child in element.iter():
+        if local_name(child.tag) != "link":
+            continue
+        child_rel = clean(child.attrib.get("rel"), "alternate").lower()
+        if rel and child_rel != rel:
+            continue
+        value = absolute_url(child.attrib.get("href") or element_text(child), base_url)
+        if is_http_url(value):
+            return value
+    return ""
+
+
+def audio_url(element: ET.Element, base_url: str) -> str:
+    candidates: list[tuple[str, str]] = []
+    for child in element.iter():
+        name = local_name(child.tag)
+        if name == "enclosure":
+            candidates.append((child.attrib.get("url", ""), child.attrib.get("type", "")))
+        elif name == "content" and child.attrib.get("url"):
+            candidates.append((child.attrib.get("url", ""), child.attrib.get("type", "")))
+        elif name == "link" and clean(child.attrib.get("rel")).lower() == "enclosure":
+            candidates.append((child.attrib.get("href", ""), child.attrib.get("type", "")))
+
+    fallback = ""
+    for raw_url, media_type in candidates:
+        value = absolute_url(raw_url, base_url)
+        if not is_http_url(value):
+            continue
+        if not fallback:
+            fallback = value
+        suffix = PurePosixPath(urllib.parse.urlparse(value).path.lower()).suffix
+        if clean(media_type).lower().startswith("audio/") or suffix in AUDIO_EXTENSIONS:
+            return value
+    return fallback
+
+
+def explicit_value(value: str) -> bool:
+    return clean(value).lower() in {"1", "true", "yes", "explicit"}
+
+
+def parse_feed(raw: bytes, feed_url: str) -> dict[str, object]:
+    root = ET.fromstring(raw)
+    feed_container = root
+    if local_name(root.tag) == "rss":
+        for child in list(root):
+            if local_name(child.tag) == "channel":
+                feed_container = child
+                break
+
+    feed_title = child_text(feed_container, {"title"}) or feed_url
+    feed_description = child_text(feed_container, {"description", "summary", "subtitle"})
+    feed_art = child_with_attribute(feed_container, {"image", "icon", "logo"})
+    if not feed_art:
+        feed_art = image_url(feed_container, feed_url)
+    feed_art = absolute_url(feed_art, feed_url)
+
+    episode_nodes = [
+        element
+        for element in root.iter()
+        if local_name(element.tag) in {"item", "entry"}
+    ]
+    episodes: list[dict[str, object]] = []
+    for node in episode_nodes:
+        title = child_text(node, {"title"}) or "Untitled episode"
+        episode_audio = audio_url(node, feed_url)
+        if not episode_audio:
+            continue
+
+        guid = child_text(node, {"guid", "id"})
+        page_url = link_url(node, feed_url, "alternate") or child_text(node, {"link"})
+        page_url = absolute_url(page_url, feed_url)
+        summary = child_text(node, {"description", "summary", "content"})
+        published = child_text(node, {"pubdate", "published", "updated", "date"})
+        duration = child_text(node, {"duration"})
+        episode_art = image_url(node, feed_url)
+        if not episode_art:
+            episode_art = feed_art
+
+        episode_id = clean(guid) or page_url or episode_audio
+        episodes.append(
+            {
+                "id": episode_id,
+                "title": title,
+                "audioUrl": episode_audio,
+                "pageUrl": page_url,
+                "summary": plain_summary(summary),
+                "publishedAt": parse_timestamp(published),
+                "duration": parse_duration(duration),
+                "artUrl": episode_art,
+                "explicit": explicit_value(child_text(node, {"explicit"})),
+            }
+        )
+
+    episodes.sort(key=lambda episode: int(episode["publishedAt"]), reverse=True)
+    return {
+        "title": feed_title,
+        "description": plain_summary(feed_description),
+        "artUrl": feed_art,
+        "episodes": episodes[:100],
+    }
+
+
+def fetch(url: str) -> bytes:
+    if not is_http_url(url):
+        raise ValueError("feed URL must use http or https")
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            chunk = response.read(64 * 1024)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_BYTES:
+                raise ValueError("feed is larger than 5 MiB")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 2:
+        print(json.dumps({"ok": False, "error": "usage: podcast-feed URL"}))
+        return 2
+
+    url = argv[1]
+    try:
+        result = parse_feed(fetch(url), url)
+        print(json.dumps({"ok": True, "feed": result}, separators=(",", ":")))
+        return 0
+    except Exception as error:
+        print(json.dumps({"ok": False, "error": clean(error, "unable to parse feed")}))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
