@@ -27,6 +27,26 @@ Panel {
         return root.podcastService[name].apply(root.podcastService, Array.prototype.slice.call(arguments, 1));
     }
 
+    function speedEquals(left, right) {
+        return Math.abs(Number(left) - Number(right)) < 0.001;
+    }
+
+    function isPresetSpeed(value) {
+        return speedEquals(value, 0.75) || speedEquals(value, 1.0)
+            || speedEquals(value, 1.5) || speedEquals(value, 2.0);
+    }
+
+    function speedPresetLabel(preset) {
+        var current = root.podcastService ? root.podcastService.playbackSpeed : 1.0;
+        var display = speedEquals(preset, 1.0) && !isPresetSpeed(current) ? current : preset;
+        var label = Model.formatSpeed(display);
+        return speedEquals(current, display) ? "[" + label + "]" : label;
+    }
+
+    function selectSpeed(preset) {
+        return root.serviceCall("setSpeed", preset);
+    }
+
     function addFeed() {
         if (!feedUrlField.text.trim())
             return;
@@ -186,9 +206,9 @@ Panel {
                 } else if (value === "b" || value === "B") {
                     root.serviceCall("playPrevious");
                 } else if (value === "[") {
-                    root.serviceCall("adjustSpeed", -0.25);
+                    root.serviceCall("adjustSpeed", -0.1);
                 } else if (value === "]") {
-                    root.serviceCall("adjustSpeed", 0.25);
+                    root.serviceCall("adjustSpeed", 0.1);
                 } else if (value === "\\") {
                     root.serviceCall("setSpeed", 1.0);
                 } else if (value === "/") {
@@ -269,12 +289,89 @@ Panel {
                             width: parent.width
                         }
 
-                        Text {
-                            text: root.podcastService && root.podcastService.currentEpisode ? Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration) + "  " + Model.formatSpeed(root.podcastService.playbackSpeed) : ""
-                            color: Qt.darker(root.foreground, 1.5)
-                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                            font.pixelSize: Style.font.caption
-                            visible: text !== ""
+                        Row {
+                            visible: root.podcastService && root.podcastService.currentEpisode
+                            spacing: Style.space(6)
+
+                            Text {
+                                text: Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration)
+                                color: Qt.darker(root.foreground, 1.5)
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                font.pixelSize: Style.font.caption
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            Button {
+                                text: "−"
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(4)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Decrease speed by 0.1x"
+                                onClicked: root.serviceCall("adjustSpeed", -0.1)
+                            }
+
+                            Button {
+                                text: root.speedPresetLabel(0.75)
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(2)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Set speed to 0.75x"
+                                onClicked: root.selectSpeed(0.75)
+                            }
+
+                            Button {
+                                text: root.speedPresetLabel(1.0)
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(2)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Reset speed to 1x"
+                                onClicked: root.selectSpeed(1.0)
+                            }
+
+                            Button {
+                                text: root.speedPresetLabel(1.5)
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(2)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Set speed to 1.5x"
+                                onClicked: root.selectSpeed(1.5)
+                            }
+
+                            Button {
+                                text: root.speedPresetLabel(2.0)
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(2)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Set speed to 2x"
+                                onClicked: root.selectSpeed(2.0)
+                            }
+
+                            Button {
+                                text: "+"
+                                foreground: Qt.darker(root.foreground, 1.5)
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                fontSize: Style.font.caption
+                                horizontalPadding: Style.space(4)
+                                verticalPadding: Style.space(1)
+                                background: "transparent"
+                                Accessible.name: "Increase speed by 0.1x"
+                                onClicked: root.serviceCall("adjustSpeed", 0.1)
+                            }
                         }
                     }
                 }
@@ -321,63 +418,6 @@ Panel {
                         foreground: root.foreground
                         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                         onClicked: root.serviceCall("playNext")
-                    }
-                }
-
-                Row {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    spacing: Style.space(5)
-
-                    Button {
-                        text: "−"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        Accessible.name: "Decrease speed by 0.25x"
-                        onClicked: root.serviceCall("adjustSpeed", -0.25)
-                    }
-
-                    Button {
-                        text: "0.75x"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 0.75
-                        Accessible.name: "Set speed to 0.75x"
-                        onClicked: root.serviceCall("setSpeed", 0.75)
-                    }
-
-                    Button {
-                        text: "1x"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 1.0
-                        Accessible.name: "Set speed to 1x (normal)"
-                        onClicked: root.serviceCall("setSpeed", 1.0)
-                    }
-
-                    Button {
-                        text: "1.5x"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 1.5
-                        Accessible.name: "Set speed to 1.5x"
-                        onClicked: root.serviceCall("setSpeed", 1.5)
-                    }
-
-                    Button {
-                        text: "2x"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 2.0
-                        Accessible.name: "Set speed to 2x"
-                        onClicked: root.serviceCall("setSpeed", 2.0)
-                    }
-
-                    Button {
-                        text: "+"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                        Accessible.name: "Increase speed by 0.25x"
-                        onClicked: root.serviceCall("adjustSpeed", 0.25)
                     }
                 }
 

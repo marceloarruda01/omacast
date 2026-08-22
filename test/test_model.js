@@ -35,17 +35,20 @@ test("filters episodes and formats progress", () => {
     assert.equal(Model.formatPosition(150, 600), "2:30 / 10:00");
 });
 
-test("clampSpeed clamps to valid range in 0.25 increments", () => {
+test("clampSpeed preserves preset and 0.1-adjusted speeds", () => {
     assert.equal(Model.clampSpeed(1.0), 1.0);
     assert.equal(Model.clampSpeed(0.1), 0.5);
     assert.equal(Model.clampSpeed(5.0), 3.0);
-    assert.equal(Model.clampSpeed(1.3), 1.25);
-    assert.equal(Model.clampSpeed(1.6), 1.5);
+    assert.equal(Model.clampSpeed(0.75), 0.75);
+    assert.equal(Model.clampSpeed(1.1), 1.1);
+    assert.equal(Model.clampSpeed(1.3), 1.3);
+    assert.equal(Model.clampSpeed(1.6), 1.6);
     assert.equal(Model.clampSpeed(undefined), 1.0);
 });
 
 test("formatSpeed formats speed values", () => {
     assert.equal(Model.formatSpeed(1.0), "1x");
+    assert.equal(Model.formatSpeed(1.1), "1.1x");
     assert.equal(Model.formatSpeed(1.5), "1.5x");
     assert.equal(Model.formatSpeed(0.75), "0.75x");
     assert.equal(Model.formatSpeed(2.0), "2x");

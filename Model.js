@@ -5,7 +5,7 @@ var MAX_EPISODES_PER_FEED = 100;
 var SEPARATOR = "\u001f";
 var SPEED_MIN = 0.5;
 var SPEED_MAX = 3.0;
-var SPEED_STEP = 0.25;
+var SPEED_STEP = 0.1;
 var SPEED_DEFAULT = 1.0;
 
 function text(value, fallback) {
@@ -233,7 +233,7 @@ function truncate(value, length) {
 function clampSpeed(value) {
     var n = number(value, SPEED_DEFAULT);
     if (!isFinite(n)) return SPEED_DEFAULT;
-    return Math.round(Math.max(SPEED_MIN, Math.min(SPEED_MAX, n)) / SPEED_STEP) * SPEED_STEP;
+    return Math.round(Math.max(SPEED_MIN, Math.min(SPEED_MAX, n)) * 100) / 100;
 }
 
 function formatSpeed(value) {
