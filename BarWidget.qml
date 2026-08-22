@@ -19,6 +19,7 @@ Panel {
     property string searchQuery: ""
     property string feedFilter: ""
     property int selectedIndex: 0
+    property string activeTab: "episodes"
 
     function serviceCall(name) {
         if (!root.podcastService || typeof root.podcastService[name] !== "function")
@@ -37,6 +38,8 @@ Panel {
     }
 
     function selectEpisode(delta) {
+        if (root.activeTab !== "episodes")
+            root.activeTab = "episodes";
         var count = root.visibleEpisodes.length;
         if (count === 0)
             return;
@@ -161,35 +164,32 @@ Panel {
                 root.switchPanel(direction);
             }
             onTextKey: function (value) {
-                if (value === "r" || value === "R")
+                if (value === "1") {
+                    root.activeTab = "episodes";
+                } else if (value === "2") {
+                    root.activeTab = "feeds";
+                } else if (value === "r" || value === "R") {
                     root.refresh();
-                else if (value === "p" || value === "P")
+                } else if (value === "p" || value === "P") {
                     root.serviceCall("togglePlayPause");
-                else if (value === "n" || value === "N")
+                } else if (value === "n" || value === "N") {
                     root.serviceCall("playNext");
-                else if (value === "b" || value === "B")
+                } else if (value === "b" || value === "B") {
                     root.serviceCall("playPrevious");
-                else if (value === "/") {
+                } else if (value === "/") {
+                    root.activeTab = "episodes";
                     searchField.forceActiveFocus();
                     searchField.selectAll();
                 }
             }
 
-            Flickable {
-                id: contentFlick
+            Column {
+                id: panelColumn
 
-                anchors.fill: parent
-                contentWidth: width
-                contentHeight: panelColumn.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                interactive: contentHeight > height
-
-                Column {
-                    id: panelColumn
-
-                    width: contentFlick.width
-                    spacing: Style.space(12)
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                spacing: Style.space(12)
 
                     Item {
                         width: parent.width
@@ -246,7 +246,7 @@ Panel {
                             }
 
                             Text {
-                                text: root.currentFeed || "Add a feed below"
+                                text: root.currentFeed || "Add a feed in the Podcasts tab"
                                 color: Qt.darker(root.foreground, 1.4)
                                 font.family: root.bar ? root.bar.fontFamily : Style.font.family
                                 font.pixelSize: Style.font.bodySmall
@@ -309,6 +309,318 @@ Panel {
                         }
                     }
 
+                    ButtonGroup {
+                        id: tabBar
+
+                        options: [
+                            {
+                                "value": "episodes",
+                                "label": "Episodes"
+                            },
+                            {
+                                "value": "feeds",
+                                "label": "Podcasts"
+                            }
+                        ]
+                        value: root.activeTab
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        onChanged: function (value) {
+                            root.activeTab = value;
+                        }
+                    }
+
+                    Column {
+                        id: episodesPane
+
+                        width: parent.width
+                        spacing: Style.space(12)
+                        visible: root.activeTab === "episodes"
+
+                        TextField {
+                            id: searchField
+
+                            width: parent.width
+                            placeholderText: "Search episodes (press /)"
+                            foreground: root.foreground
+                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                            onTextChanged: {
+                                root.searchQuery = text;
+                                root.selectedIndex = 0;
+                            }
+                        }
+
+                        Button {
+                            visible: root.feedFilter !== ""
+                            text: "Show all episodes"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                            onClicked: root.feedFilter = ""
+                        }
+
+                        PanelSectionHeader {
+                            text: "EPISODES"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        }
+
+                        Flickable {
+                            id: episodesFlick
+
+                            width: parent.width
+                            height: Math.min(Style.space(330), Math.max(Style.space(90), episodesColumn.implicitHeight))
+                            contentWidth: width
+                            contentHeight: episodesColumn.implicitHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            interactive: contentHeight > height
+
+                            Column {
+                                id: episodesColumn
+
+                                width: episodesFlick.width
+                                spacing: Style.space(4)
+
+                                Repeater {
+                                    model: root.visibleEpisodes
+
+                                    BorderSurface {
+                                        required property var modelData
+                                        required property int index
+
+                                        readonly property var episodeProgress: root.podcastService ? Model.progressFor(root.podcastService.progress, modelData.key) : ({
+                                                position: 0,
+                                                completed: false
+                                            })
+                                        readonly property real ratio: root.podcastService ? Model.progressRatio(modelData, root.podcastService.progress) : 0
+
+                                        width: episodesColumn.width
+                                        implicitHeight: episodeColumn.implicitHeight + Style.space(12)
+                                        radius: Style.cornerRadius
+                                        color: index === root.selectedIndex ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
+                                        borderSpec: index === root.selectedIndex ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
+
+                                        Column {
+                                            id: episodeColumn
+
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.leftMargin: Style.space(8)
+                                            anchors.rightMargin: Style.space(8)
+                                            spacing: Style.space(2)
+
+                                            Text {
+                                                text: modelData.title
+                                                color: root.foreground
+                                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                font.pixelSize: Style.font.body
+                                                font.bold: index === root.selectedIndex
+                                                elide: Text.ElideRight
+                                                width: parent.width
+                                            }
+
+                                            Text {
+                                                text: modelData.feedTitle + "  " + Model.formatDate(modelData.publishedAt) + (modelData.duration > 0 ? "  " + Model.formatDuration(modelData.duration) : "") + (episodeProgress.completed ? "  DONE" : "")
+                                                color: Qt.darker(root.foreground, 1.5)
+                                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                font.pixelSize: Style.font.caption
+                                                elide: Text.ElideRight
+                                                width: parent.width
+                                            }
+
+                                            Rectangle {
+                                                width: parent.width
+                                                height: Style.space(3)
+                                                color: Style.selectedFillFor(root.foreground, Color.accent)
+                                                visible: ratio > 0
+
+                                                Rectangle {
+                                                    width: parent.width * ratio
+                                                    height: parent.height
+                                                    color: root.foreground
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: {
+                                                root.selectedIndex = index;
+                                                root.serviceCall("playEpisode", modelData);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    visible: root.visibleEpisodes.length === 0
+                                    text: root.podcastService && root.podcastService.hasFeeds ? "No playable episodes match this filter." : "Add a podcast feed in the Podcasts tab."
+                                    color: Qt.darker(root.foreground, 1.4)
+                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                    font.pixelSize: Style.font.bodySmall
+                                    font.italic: true
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        id: feedsPane
+
+                        width: parent.width
+                        spacing: Style.space(12)
+                        visible: root.activeTab === "feeds"
+
+                        PanelSectionHeader {
+                            text: "PODCASTS"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: Style.space(6)
+
+                            TextField {
+                                id: feedUrlField
+
+                                width: parent.width - addFeedButton.width - parent.spacing
+                                placeholderText: "Paste an RSS or Atom feed URL"
+                                foreground: root.foreground
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                onAccepted: root.addFeed()
+                            }
+
+                            Button {
+                                id: addFeedButton
+
+                                text: "Add"
+                                foreground: root.foreground
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                onClicked: root.addFeed()
+                            }
+                        }
+
+                        Flickable {
+                            id: feedsFlick
+
+                            width: parent.width
+                            height: Math.min(Style.space(330), Math.max(Style.space(90), feedsColumn.implicitHeight))
+                            contentWidth: width
+                            contentHeight: feedsColumn.implicitHeight
+                            clip: true
+                            boundsBehavior: Flickable.StopAtBounds
+                            interactive: contentHeight > height
+
+                            Column {
+                                id: feedsColumn
+
+                                width: feedsFlick.width
+                                spacing: Style.space(4)
+
+                                Repeater {
+                                    model: root.podcastService ? root.podcastService.feeds : []
+
+                                    BorderSurface {
+                                        required property var modelData
+                                        required property int index
+
+                                        width: parent.width
+                                        implicitHeight: feedRow.implicitHeight + Style.space(10)
+                                        radius: Style.cornerRadius
+                                        color: root.feedFilter === modelData.url ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
+                                        borderSpec: root.feedFilter === modelData.url ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
+
+                                        Row {
+                                            id: feedRow
+
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            anchors.leftMargin: Style.space(8)
+                                            anchors.rightMargin: Style.space(4)
+                                            spacing: Style.space(6)
+
+                                            Column {
+                                                width: parent.width - removeFeedButton.width - parent.spacing
+                                                spacing: Style.space(1)
+
+                                                Text {
+                                                    text: modelData.title
+                                                    color: root.foreground
+                                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                    font.pixelSize: Style.font.body
+                                                    font.bold: root.feedFilter === modelData.url
+                                                    elide: Text.ElideRight
+                                                    width: parent.width
+                                                }
+
+                                                Text {
+                                                    text: modelData.error || modelData.url
+                                                    color: modelData.error ? Color.urgent : Qt.darker(root.foreground, 1.6)
+                                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                                    font.pixelSize: Style.font.caption
+                                                    elide: Text.ElideRight
+                                                    width: parent.width
+                                                }
+                                            }
+
+                                            PanelActionButton {
+                                                id: removeFeedButton
+
+                                                iconText: "x"
+                                                tooltipText: "Remove feed"
+                                                foreground: root.foreground
+                                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                                hoverColor: Color.urgent
+                                                onClicked: {
+                                                    if (root.feedFilter === modelData.url)
+                                                        root.feedFilter = "";
+                                                    root.serviceCall("removeFeed", modelData.url);
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            z: -1
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: {
+                                                var nextFilter = root.feedFilter === modelData.url ? "" : modelData.url;
+                                                root.feedFilter = nextFilter;
+                                                if (nextFilter !== "")
+                                                    root.activeTab = "episodes";
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    visible: root.podcastService && !root.podcastService.hasFeeds
+                                    text: "Paste a feed URL above to subscribe."
+                                    color: Qt.darker(root.foreground, 1.4)
+                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                    font.pixelSize: Style.font.bodySmall
+                                    font.italic: true
+                                }
+                            }
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: Style.space(6)
+
+                            Button {
+                                text: "Refresh"
+                                foreground: root.foreground
+                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                                onClicked: root.refresh()
+                            }
+                        }
+                    }
+
                     Text {
                         text: root.podcastService && root.podcastService.errorText ? root.podcastService.errorText : (root.podcastService ? root.podcastService.statusText : "Starting podcast service...")
                         color: root.podcastService && root.podcastService.errorText ? Color.urgent : Qt.darker(root.foreground, 1.4)
@@ -319,254 +631,8 @@ Panel {
                         visible: text !== ""
                     }
 
-                    PanelSeparator {
-                        foreground: root.foreground
-                    }
-
-                    PanelSectionHeader {
-                        text: "PODCASTS"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                    }
-
-                    Row {
-                        width: parent.width
-                        spacing: Style.space(6)
-
-                        TextField {
-                            id: feedUrlField
-
-                            width: parent.width - addFeedButton.width - parent.spacing
-                            placeholderText: "Paste an RSS or Atom feed URL"
-                            foreground: root.foreground
-                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                            onAccepted: root.addFeed()
-                        }
-
-                        Button {
-                            id: addFeedButton
-
-                            text: "Add"
-                            foreground: root.foreground
-                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                            onClicked: root.addFeed()
-                        }
-                    }
-
-                    Column {
-                        width: parent.width
-                        spacing: Style.space(4)
-
-                        Repeater {
-                            model: root.podcastService ? root.podcastService.feeds : []
-
-                            BorderSurface {
-                                required property var modelData
-                                required property int index
-
-                                width: parent.width
-                                implicitHeight: feedRow.implicitHeight + Style.space(10)
-                                radius: Style.cornerRadius
-                                color: root.feedFilter === modelData.url ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
-                                borderSpec: root.feedFilter === modelData.url ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
-
-                                Row {
-                                    id: feedRow
-
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.leftMargin: Style.space(8)
-                                    anchors.rightMargin: Style.space(4)
-                                    spacing: Style.space(6)
-
-                                    Column {
-                                        width: parent.width - removeFeedButton.width - parent.spacing
-                                        spacing: Style.space(1)
-
-                                        Text {
-                                            text: modelData.title
-                                            color: root.foreground
-                                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                            font.pixelSize: Style.font.body
-                                            font.bold: root.feedFilter === modelData.url
-                                            elide: Text.ElideRight
-                                            width: parent.width
-                                        }
-
-                                        Text {
-                                            text: modelData.error || modelData.url
-                                            color: modelData.error ? Color.urgent : Qt.darker(root.foreground, 1.6)
-                                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                            font.pixelSize: Style.font.caption
-                                            elide: Text.ElideRight
-                                            width: parent.width
-                                        }
-                                    }
-
-                                    PanelActionButton {
-                                        id: removeFeedButton
-
-                                        iconText: "x"
-                                        tooltipText: "Remove feed"
-                                        foreground: root.foreground
-                                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                        hoverColor: Color.urgent
-                                        onClicked: root.serviceCall("removeFeed", modelData.url)
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    z: -1
-                                    acceptedButtons: Qt.LeftButton
-                                    onClicked: root.feedFilter = root.feedFilter === modelData.url ? "" : modelData.url
-                                }
-                            }
-                        }
-                    }
-
-                    Row {
-                        width: parent.width
-                        spacing: Style.space(6)
-
-                        Button {
-                            text: root.feedFilter ? "Show all episodes" : "All episodes"
-                            foreground: root.foreground
-                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                            onClicked: root.feedFilter = ""
-                        }
-
-                        Button {
-                            text: "Refresh"
-                            foreground: root.foreground
-                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                            onClicked: root.refresh()
-                        }
-                    }
-
-                    TextField {
-                        id: searchField
-
-                        width: parent.width
-                        placeholderText: "Search episodes (press /)"
-                        foreground: root.foreground
-                        font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                        onTextChanged: {
-                            root.searchQuery = text;
-                            root.selectedIndex = 0;
-                        }
-                    }
-
-                    PanelSectionHeader {
-                        text: "EPISODES"
-                        foreground: root.foreground
-                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                    }
-
-                    Flickable {
-                        id: episodesFlick
-
-                        width: parent.width
-                        height: Math.min(Style.space(330), Math.max(Style.space(90), episodesColumn.implicitHeight))
-                        contentWidth: width
-                        contentHeight: episodesColumn.implicitHeight
-                        clip: true
-                        boundsBehavior: Flickable.StopAtBounds
-                        interactive: contentHeight > height
-
-                        Column {
-                            id: episodesColumn
-
-                            width: episodesFlick.width
-                            spacing: Style.space(4)
-
-                            Repeater {
-                                model: root.visibleEpisodes
-
-                                BorderSurface {
-                                    required property var modelData
-                                    required property int index
-
-                                    readonly property var episodeProgress: root.podcastService ? Model.progressFor(root.podcastService.progress, modelData.key) : ({
-                                            position: 0,
-                                            completed: false
-                                        })
-                                    readonly property real ratio: root.podcastService ? Model.progressRatio(modelData, root.podcastService.progress) : 0
-
-                                    width: episodesColumn.width
-                                    implicitHeight: episodeColumn.implicitHeight + Style.space(12)
-                                    radius: Style.cornerRadius
-                                    color: index === root.selectedIndex ? Style.selectedFillFor(root.foreground, Color.accent) : "transparent"
-                                    borderSpec: index === root.selectedIndex ? Border.controlSpec("normal", root.foreground, Color.accent) : Border.none()
-
-                                    Column {
-                                        id: episodeColumn
-
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Style.space(8)
-                                        anchors.rightMargin: Style.space(8)
-                                        spacing: Style.space(2)
-
-                                        Text {
-                                            text: modelData.title
-                                            color: root.foreground
-                                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                            font.pixelSize: Style.font.body
-                                            font.bold: index === root.selectedIndex
-                                            elide: Text.ElideRight
-                                            width: parent.width
-                                        }
-
-                                        Text {
-                                            text: modelData.feedTitle + "  " + Model.formatDate(modelData.publishedAt) + (modelData.duration > 0 ? "  " + Model.formatDuration(modelData.duration) : "") + (episodeProgress.completed ? "  DONE" : "")
-                                            color: Qt.darker(root.foreground, 1.5)
-                                            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                            font.pixelSize: Style.font.caption
-                                            elide: Text.ElideRight
-                                            width: parent.width
-                                        }
-
-                                        Rectangle {
-                                            width: parent.width
-                                            height: Style.space(3)
-                                            color: Style.selectedFillFor(root.foreground, Color.accent)
-                                            visible: ratio > 0
-
-                                            Rectangle {
-                                                width: parent.width * ratio
-                                                height: parent.height
-                                                color: root.foreground
-                                            }
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton
-                                        onClicked: {
-                                            root.selectedIndex = index;
-                                            root.serviceCall("playEpisode", modelData);
-                                        }
-                                    }
-                                }
-                            }
-
-                            Text {
-                                visible: root.visibleEpisodes.length === 0
-                                text: root.podcastService && root.podcastService.hasFeeds ? "No playable episodes match this filter." : "Add a podcast feed above."
-                                color: Qt.darker(root.foreground, 1.4)
-                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                font.pixelSize: Style.font.bodySmall
-                                font.italic: true
-                            }
-                        }
-                    }
-
                     Text {
-                        text: "Keys: j/k select  Enter play  h/l seek  r refresh  / search"
+                        text: root.activeTab === "episodes" ? "Keys: j/k select  Enter play  h/l seek  / search  1/2 tab" : "Keys: r refresh  1/2 tab"
                         color: Qt.darker(root.foreground, 1.7)
                         font.family: root.bar ? root.bar.fontFamily : Style.font.family
                         font.pixelSize: Style.font.caption
