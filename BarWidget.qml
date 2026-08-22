@@ -199,6 +199,124 @@ Panel {
                     width: contentFlick.width
                     spacing: Style.space(12)
 
+                    Item {
+                        width: parent.width
+                        height: Math.max(heroImage.height, heroLabels.implicitHeight)
+
+                        BorderSurface {
+                            id: heroImage
+
+                            width: Style.space(72)
+                            height: width
+                            radius: Style.cornerRadius
+                            color: Style.selectedFillFor(root.foreground, Color.accent)
+                            borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+
+                            Image {
+                                id: heroArt
+
+                                anchors.fill: parent
+                                anchors.margins: Style.space(2)
+                                source: root.podcastService && root.podcastService.currentEpisode ? root.podcastService.currentEpisode.artUrl : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                visible: source !== ""
+                            }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "POD"
+                                color: root.foreground
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                font.pixelSize: Style.font.title
+                                font.bold: true
+                                visible: !heroArt.visible
+                            }
+                        }
+
+                        Column {
+                            id: heroLabels
+
+                            anchors.left: heroImage.right
+                            anchors.leftMargin: Style.space(14)
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Style.space(3)
+
+                            Text {
+                                text: root.podcastService && root.podcastService.currentEpisode ? root.podcastService.currentEpisode.title : "No episode selected"
+                                color: root.foreground
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                font.pixelSize: Style.font.title
+                                font.bold: true
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+
+                            Text {
+                                text: root.currentFeed || "Add a feed in the Podcasts tab"
+                                color: Qt.darker(root.foreground, 1.4)
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                font.pixelSize: Style.font.bodySmall
+                                elide: Text.ElideRight
+                                width: parent.width
+                            }
+
+                            Text {
+                                text: root.podcastService && root.podcastService.currentEpisode ? Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration) : ""
+                                color: Qt.darker(root.foreground, 1.5)
+                                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                                font.pixelSize: Style.font.caption
+                                visible: text !== ""
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        height: Style.space(5)
+                        color: Style.selectedFillFor(root.foreground, Color.accent)
+
+                        Rectangle {
+                            width: root.podcastService && root.podcastService.currentEpisode ? parent.width * Model.progressRatio(root.podcastService.currentEpisode, root.podcastService.progress) : 0
+                            height: parent.height
+                            color: root.foreground
+                        }
+                    }
+
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: Style.space(5)
+
+                        Button {
+                            text: "-30"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                            onClicked: root.serviceCall("seek", -30)
+                        }
+
+                        Button {
+                            text: root.podcastService && root.podcastService.playback.playing ? "Pause" : "Play"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                            onClicked: root.serviceCall("togglePlayPause")
+                        }
+
+                        Button {
+                            text: "+30"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                            onClicked: root.serviceCall("seek", 30)
+                        }
+
+                        Button {
+                            text: "Next"
+                            foreground: root.foreground
+                            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                            onClicked: root.serviceCall("playNext")
+                        }
+                    }
+
                     ButtonGroup {
                         id: tabBar
 
@@ -226,128 +344,6 @@ Panel {
                         width: parent.width
                         spacing: Style.space(12)
                         visible: root.activeTab === "episodes"
-
-                        Item {
-                            width: parent.width
-                            height: Math.max(heroImage.height, heroLabels.implicitHeight)
-
-                            BorderSurface {
-                                id: heroImage
-
-                                width: Style.space(72)
-                                height: width
-                                radius: Style.cornerRadius
-                                color: Style.selectedFillFor(root.foreground, Color.accent)
-                                borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
-
-                                Image {
-                                    id: heroArt
-
-                                    anchors.fill: parent
-                                    anchors.margins: Style.space(2)
-                                    source: root.podcastService && root.podcastService.currentEpisode ? root.podcastService.currentEpisode.artUrl : ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    visible: source !== ""
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "POD"
-                                    color: root.foreground
-                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                    font.pixelSize: Style.font.title
-                                    font.bold: true
-                                    visible: !heroArt.visible
-                                }
-                            }
-
-                            Column {
-                                id: heroLabels
-
-                                anchors.left: heroImage.right
-                                anchors.leftMargin: Style.space(14)
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Style.space(3)
-
-                                Text {
-                                    text: root.podcastService && root.podcastService.currentEpisode ? root.podcastService.currentEpisode.title : "No episode selected"
-                                    color: root.foreground
-                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                    font.pixelSize: Style.font.title
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                    width: parent.width
-                                }
-
-                                Text {
-                                    text: root.currentFeed || "Add a feed in the Podcasts tab"
-                                    color: Qt.darker(root.foreground, 1.4)
-                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                    font.pixelSize: Style.font.bodySmall
-                                    elide: Text.ElideRight
-                                    width: parent.width
-                                }
-
-                                Text {
-                                    text: root.podcastService && root.podcastService.currentEpisode ? Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration) : ""
-                                    color: Qt.darker(root.foreground, 1.5)
-                                    font.family: root.bar ? root.bar.fontFamily : Style.font.family
-                                    font.pixelSize: Style.font.caption
-                                    visible: text !== ""
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: parent.width
-                            height: Style.space(5)
-                            color: Style.selectedFillFor(root.foreground, Color.accent)
-
-                            Rectangle {
-                                width: root.podcastService && root.podcastService.currentEpisode ? parent.width * Model.progressRatio(root.podcastService.currentEpisode, root.podcastService.progress) : 0
-                                height: parent.height
-                                color: root.foreground
-                            }
-                        }
-
-                        Row {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: Style.space(5)
-
-                            Button {
-                                text: "-30"
-                                foreground: root.foreground
-                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                onClicked: root.serviceCall("seek", -30)
-                            }
-
-                            Button {
-                                text: root.podcastService && root.podcastService.playback.playing ? "Pause" : "Play"
-                                foreground: root.foreground
-                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                onClicked: root.serviceCall("togglePlayPause")
-                            }
-
-                            Button {
-                                text: "+30"
-                                foreground: root.foreground
-                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                onClicked: root.serviceCall("seek", 30)
-                            }
-
-                            Button {
-                                text: "Next"
-                                foreground: root.foreground
-                                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                                onClicked: root.serviceCall("playNext")
-                            }
-                        }
-
-                        PanelSeparator {
-                            foreground: root.foreground
-                        }
 
                         TextField {
                             id: searchField
