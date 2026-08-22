@@ -35,8 +35,11 @@ library and accepts HTTP and HTTPS feeds.
 - Right-click the bar widget: open the library.
 - Middle-click the bar widget: play the next episode.
 - Mouse wheel over the bar widget: seek by 30 seconds.
-- In the popup, `j` and `k` select episodes, `Enter` plays, `h` and `l` seek,
-  `r` refreshes, and `/` focuses search.
+- In the popup, `1` and `2` switch between the Episodes and Podcasts tabs,
+  `j` and `k` select episodes, `Enter` plays, `h` and `l` seek, `r`
+  refreshes, and `/` focuses search.
+- Clicking a podcast in the Podcasts tab filters the Episodes tab to that
+  show; "Show all episodes" clears the filter.
 
 Subscriptions and progress are stored in:
 
