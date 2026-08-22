@@ -117,7 +117,7 @@ def state() -> dict[str, object]:
         return values
 
     try:
-        for key in ("time-pos", "duration", "pause", "idle-active", "media-title", "path"):
+        for key in ("time-pos", "duration", "pause", "idle-active", "media-title", "path", "speed"):
             values[key] = request(["get_property", key])
     except (OSError, RuntimeError, socket.timeout):
         return values
@@ -129,6 +129,7 @@ def state() -> dict[str, object]:
     values["idle"] = bool(values.get("idle-active"))
     values["title"] = str(values.get("media-title") or "")
     values["path"] = str(values.get("path") or "")
+    values["speed"] = float(values.get("speed") or 1.0)
     for key in ("time-pos", "duration", "pause", "idle-active", "media-title"):
         values.pop(key, None)
     return values
@@ -159,6 +160,14 @@ def main(argv: list[str]) -> int:
             return output({"ok": True})
         if action == "stop":
             stop_existing()
+            return output({"ok": True})
+        if action == "speed":
+            if len(argv) < 3:
+                raise ValueError("speed requires a numeric value")
+            speed = float(argv[2])
+            if not (0.5 <= speed <= 3.0):
+                raise ValueError(f"speed must be between 0.5 and 3.0, got {speed}")
+            request(["set_property", "speed", speed])
             return output({"ok": True})
         if action == "state":
             return output(state())

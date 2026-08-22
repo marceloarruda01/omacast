@@ -91,6 +91,15 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
         }
 
+        Text {
+            visible: !root.vertical && root.podcastService && root.podcastService.playbackSpeed !== 1.0
+            text: root.podcastService ? Model.formatSpeed(root.podcastService.playbackSpeed) : ""
+            color: root.foreground
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.body
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
         Item {
             visible: !root.vertical
             width: Math.min(Style.space(135), titleText.implicitWidth)
@@ -176,6 +185,12 @@ Panel {
                     root.serviceCall("playNext");
                 } else if (value === "b" || value === "B") {
                     root.serviceCall("playPrevious");
+                } else if (value === "[") {
+                    root.serviceCall("adjustSpeed", -0.25);
+                } else if (value === "]") {
+                    root.serviceCall("adjustSpeed", 0.25);
+                } else if (value === "\\") {
+                    root.serviceCall("setSpeed", 1.0);
                 } else if (value === "/") {
                     root.activeTab = "episodes";
                     searchField.forceActiveFocus();
@@ -255,7 +270,7 @@ Panel {
                         }
 
                         Text {
-                            text: root.podcastService && root.podcastService.currentEpisode ? Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration) : ""
+                            text: root.podcastService && root.podcastService.currentEpisode ? Model.formatPosition(root.podcastService.playback.position, root.podcastService.playback.duration || root.podcastService.currentEpisode.duration) + "  " + Model.formatSpeed(root.podcastService.playbackSpeed) : ""
                             color: Qt.darker(root.foreground, 1.5)
                             font.family: root.bar ? root.bar.fontFamily : Style.font.family
                             font.pixelSize: Style.font.caption
@@ -306,6 +321,63 @@ Panel {
                         foreground: root.foreground
                         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                         onClicked: root.serviceCall("playNext")
+                    }
+                }
+
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: Style.space(5)
+
+                    Button {
+                        text: "−"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        Accessible.name: "Decrease speed by 0.25x"
+                        onClicked: root.serviceCall("adjustSpeed", -0.25)
+                    }
+
+                    Button {
+                        text: "0.75x"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 0.75
+                        Accessible.name: "Set speed to 0.75x"
+                        onClicked: root.serviceCall("setSpeed", 0.75)
+                    }
+
+                    Button {
+                        text: "1x"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 1.0
+                        Accessible.name: "Set speed to 1x (normal)"
+                        onClicked: root.serviceCall("setSpeed", 1.0)
+                    }
+
+                    Button {
+                        text: "1.5x"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 1.5
+                        Accessible.name: "Set speed to 1.5x"
+                        onClicked: root.serviceCall("setSpeed", 1.5)
+                    }
+
+                    Button {
+                        text: "2x"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        font.bold: root.podcastService && root.podcastService.playbackSpeed === 2.0
+                        Accessible.name: "Set speed to 2x"
+                        onClicked: root.serviceCall("setSpeed", 2.0)
+                    }
+
+                    Button {
+                        text: "+"
+                        foreground: root.foreground
+                        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                        Accessible.name: "Increase speed by 0.25x"
+                        onClicked: root.serviceCall("adjustSpeed", 0.25)
                     }
                 }
 
@@ -632,7 +704,7 @@ Panel {
                 }
 
                 Text {
-                    text: root.activeTab === "episodes" ? "Keys: j/k select  Enter play  h/l seek  / search  1/2 tab" : "Keys: r refresh  1/2 tab"
+                    text: root.activeTab === "episodes" ? "Keys: j/k select  Enter play  h/l seek  [ ] speed  \\ reset  / search  1/2 tab" : "Keys: r refresh  1/2 tab"
                     color: Qt.darker(root.foreground, 1.7)
                     font.family: root.bar ? root.bar.fontFamily : Style.font.family
                     font.pixelSize: Style.font.caption

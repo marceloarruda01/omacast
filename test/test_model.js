@@ -34,3 +34,38 @@ test("filters episodes and formats progress", () => {
     assert.equal(Model.formatDuration(3661), "1:01:01");
     assert.equal(Model.formatPosition(150, 600), "2:30 / 10:00");
 });
+
+test("clampSpeed clamps to valid range in 0.25 increments", () => {
+    assert.equal(Model.clampSpeed(1.0), 1.0);
+    assert.equal(Model.clampSpeed(0.1), 0.5);
+    assert.equal(Model.clampSpeed(5.0), 3.0);
+    assert.equal(Model.clampSpeed(1.3), 1.25);
+    assert.equal(Model.clampSpeed(1.6), 1.5);
+    assert.equal(Model.clampSpeed(undefined), 1.0);
+});
+
+test("formatSpeed formats speed values", () => {
+    assert.equal(Model.formatSpeed(1.0), "1x");
+    assert.equal(Model.formatSpeed(1.5), "1.5x");
+    assert.equal(Model.formatSpeed(0.75), "0.75x");
+    assert.equal(Model.formatSpeed(2.0), "2x");
+});
+
+test("parseState loads and persists playbackSpeed", () => {
+    const state = Model.parseState(JSON.stringify({ playbackSpeed: 1.5 }));
+    assert.equal(state.playbackSpeed, 1.5);
+
+    const defaultState = Model.parseState("{}");
+    assert.equal(defaultState.playbackSpeed, 1.0);
+
+    const clamped = Model.parseState(JSON.stringify({ playbackSpeed: 10 }));
+    assert.equal(clamped.playbackSpeed, 3.0);
+});
+
+test("stateFor includes playbackSpeed", () => {
+    const s = Model.stateFor([], {}, "", "", 2.0);
+    assert.equal(s.playbackSpeed, 2.0);
+
+    const def = Model.stateFor([], {}, "", "");
+    assert.equal(def.playbackSpeed, 1.0);
+});
